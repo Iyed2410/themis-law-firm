@@ -3,6 +3,7 @@
 ## Approved architecture decisions
 
 - Use a locale-prefixed route architecture with `fr` and `ar` for public content.
+- Use separate App Router group roots for public locale pages and staff pages to preserve distinct layout and auth boundaries.
 - Centralize public content in typed locale files under `src/content`.
 - Use Supabase Auth and Row Level Security for staff authentication and appointment authorization.
 - Implement the appointment lifecycle with explicit statuses and payment-tracking enums.

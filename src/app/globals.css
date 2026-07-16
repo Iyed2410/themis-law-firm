@@ -1,26 +1,71 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --black: #050607;
+  --navy: #0A1628;
+  --gold: #C6A15B;
+  --silver: #B8BCC3;
+  --ivory: #F4F1E8;
+  --muted: #9DA3AE;
+  --background: #F4F1E8;
+  --foreground: #050607;
+  --surface: #ffffff;
+  --surface-muted: #f7f5f0;
+  --border: rgba(5, 6, 7, 0.12);
+  --font-display: var(--font-cinzel);
+  --font-body: var(--font-inter);
+  --font-arabic: var(--font-noto-kufi-arabic);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-body);
+  --font-serif: var(--font-display);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
+  min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.container {
+  width: min(1200px, 100% - 2rem);
+  margin: 0 auto;
+}
+
+.page-heading {
+  font-family: var(--font-display), Georgia, serif;
 }
