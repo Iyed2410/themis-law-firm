@@ -27,6 +27,7 @@
   --color-ivory: var(--ivory);
   --color-muted: var(--muted);
   --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
   --font-sans: var(--font-body);
   --font-serif: var(--font-display);
 }
