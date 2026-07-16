@@ -1,8 +1,10 @@
+import { getAbsoluteUrl } from "@/lib/public-routes";
+
 export function GET() {
   const content = `User-agent: *
 Disallow:
 
-Sitemap: ${process.env.NEXT_PUBLIC_SITE_URL}/sitemap.xml
+Sitemap: ${getAbsoluteUrl("/sitemap.xml")}
 `;
 
   return new Response(content, {

@@ -2,8 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Locale, localeContent } from "@/lib/content";
+import { siteContent, type Locale } from "@/lib/content";
 import { Logo } from "@/components/Logo";
+import {
+  getCanonicalPath,
+  getEquivalentPath,
+  getHomePath,
+  getNavRoutes,
+  type SupportedLocale,
+} from "@/lib/public-routes";
 
 const localeMap: Record<Locale, { label: string; path: string }> = {
   fr: { label: "Français", path: "/fr" },
@@ -21,9 +28,12 @@ function getAlternateLocale(pathname: string): Locale {
 export function Header() {
   const pathname = usePathname() || "/fr";
   const locale = pathname.startsWith("/ar") ? "ar" : "fr";
-  const content = localeContent[locale];
   const alternateLocale = getAlternateLocale(pathname);
-  const alternatePath = pathname.replace(/^\/fr|^\/ar/, `/${alternateLocale}`);
+  const currentSlug = getCurrentSlug(pathname, locale);
+  const alternatePath =
+    getEquivalentPath(locale, currentSlug, alternateLocale, siteContent.reviewsEnabled) ??
+    getHomePath(alternateLocale);
+  const navRoutes = getNavRoutes(siteContent.reviewsEnabled);
 
   return (
     <header className="border-b border-silver/30 bg-surface py-4">
@@ -32,9 +42,13 @@ export function Header() {
           <Logo />
         </Link>
         <nav className="flex flex-wrap gap-4 text-sm font-medium text-navy">
-          {content.navigation.map((item) => (
-            <Link key={item.href} href={item.href} className="transition hover:text-gold">
-              {item.label}
+          {navRoutes.map((route) => (
+            <Link
+              key={route.id}
+              href={getCanonicalPath(locale, route)}
+              className="transition hover:text-gold"
+            >
+              {route.nav[locale]}
             </Link>
           ))}
         </nav>
@@ -47,4 +61,19 @@ export function Header() {
       </div>
     </header>
   );
+}
+
+function getCurrentSlug(pathname: string, locale: SupportedLocale): string | null {
+  const localePrefix = `/${locale}`;
+
+  if (pathname === localePrefix || pathname === `${localePrefix}/`) {
+    return null;
+  }
+
+  const rest = pathname.startsWith(`${localePrefix}/`)
+    ? pathname.slice(localePrefix.length + 1)
+    : "";
+  const [slug] = rest.split("/");
+
+  return slug || null;
 }

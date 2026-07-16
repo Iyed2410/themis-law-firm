@@ -13,11 +13,3 @@ export function getLocaleDirection(locale: SupportedLocale) {
 export function getAlternateLocale(locale: SupportedLocale): SupportedLocale {
   return locale === "fr" ? "ar" : "fr";
 }
-
-export function getAlternatePath(pathname: string, locale: SupportedLocale): string {
-  if (!pathname) {
-    return `/${locale}`;
-  }
-
-  return pathname.replace(/^\/(fr|ar)/, `/${locale}`) || `/${locale}`;
-}

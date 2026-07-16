@@ -46,6 +46,13 @@ export type PublicRoute = {
   reviewsGated: boolean;
 };
 
+export type PublicRouteMeta = {
+  title: string;
+  description: string;
+  canonicalPath: string;
+  alternates: Record<SupportedLocale, string>;
+};
+
 export const publicRoutes: readonly PublicRoute[] = [
   {
     id: "home",
@@ -143,6 +150,10 @@ export const publicRoutes: readonly PublicRoute[] = [
 // Lookup helpers
 // ---------------------------------------------------------------------------
 
+export function isRouteEnabled(route: PublicRoute, reviewsEnabled: boolean): boolean {
+  return !route.reviewsGated || reviewsEnabled;
+}
+
 /**
  * Look up a route by locale + slug.
  *
@@ -167,6 +178,16 @@ export function getRouteBySlug(
   return (
     publicRoutes.find((route) => route.slugs[locale as SupportedLocale] === slug) ?? null
   );
+}
+
+export function getRouteById(id: PageId): PublicRoute {
+  const route = publicRoutes.find((item) => item.id === id);
+
+  if (!route) {
+    throw new Error(`Unknown public route id: ${id}`);
+  }
+
+  return route;
 }
 
 /**
@@ -199,7 +220,8 @@ export function getCanonicalPath(
 export function getEquivalentPath(
   currentLocale: SupportedLocale,
   currentSlug: string | null,
-  targetLocale: SupportedLocale
+  targetLocale: SupportedLocale,
+  reviewsEnabled: boolean
 ): string | null {
   // Home
   if (currentSlug === null) {
@@ -212,7 +234,31 @@ export function getEquivalentPath(
     return null;
   }
 
+  if (!isRouteEnabled(route, reviewsEnabled)) {
+    return null;
+  }
+
   return getCanonicalPath(targetLocale, route);
+}
+
+export function getHomePath(locale: SupportedLocale): string {
+  return getCanonicalPath(locale, getRouteById("home"));
+}
+
+export function getSiteUrl(): string {
+  const rawSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+
+  if (!rawSiteUrl) {
+    return "http://localhost:3000";
+  }
+
+  return rawSiteUrl.replace(/\/+$/, "");
+}
+
+export function getAbsoluteUrl(path: string): string {
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+
+  return `${getSiteUrl()}${normalizedPath}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,7 +270,7 @@ export function getEquivalentPath(
  */
 export function getNavRoutes(reviewsEnabled: boolean): PublicRoute[] {
   return publicRoutes.filter(
-    (r) => r.inNav && (!r.reviewsGated || reviewsEnabled)
+    (r) => r.inNav && isRouteEnabled(r, reviewsEnabled)
   );
 }
 
@@ -233,7 +279,7 @@ export function getNavRoutes(reviewsEnabled: boolean): PublicRoute[] {
  */
 export function getFooterRoutes(reviewsEnabled: boolean): PublicRoute[] {
   return publicRoutes.filter(
-    (r) => r.inFooter && (!r.reviewsGated || reviewsEnabled)
+    (r) => r.inFooter && isRouteEnabled(r, reviewsEnabled)
   );
 }
 
@@ -253,7 +299,7 @@ export function getStaticParams(
   const params: Array<{ locale: string; slug: string }> = [];
 
   for (const route of publicRoutes) {
-    if (route.reviewsGated && !reviewsEnabled) continue;
+    if (!isRouteEnabled(route, reviewsEnabled)) continue;
 
     if (route.slugs.fr !== null) {
       params.push({ locale: "fr", slug: route.slugs.fr });
@@ -278,7 +324,7 @@ export function getSitemapPaths(reviewsEnabled: boolean): string[] {
 
   for (const route of publicRoutes) {
     if (!route.inSitemap) continue;
-    if (route.reviewsGated && !reviewsEnabled) continue;
+    if (!isRouteEnabled(route, reviewsEnabled)) continue;
 
     paths.push(getCanonicalPath("fr", route));
     paths.push(getCanonicalPath("ar", route));
