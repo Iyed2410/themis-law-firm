@@ -4,7 +4,10 @@ export default function LoginPage() {
       <section className="rounded-3xl border border-silver/30 bg-surface p-10">
         <h1 className="page-heading text-3xl font-semibold text-navy">Connexion</h1>
         <p className="mt-4 text-sm leading-7 text-muted">
-          La page d’authentification du tableau de bord sera implémentée dans la phase suivante.
+          Le flux d’authentification staff sera branché à Supabase dans une évolution ultérieure.
+        </p>
+        <p className="mt-4 text-sm leading-7 text-muted">
+          La structure actuelle prépare les rôles admin/lawyer et les helpers d’autorisation côté serveur.
         </p>
       </section>
     </main>
