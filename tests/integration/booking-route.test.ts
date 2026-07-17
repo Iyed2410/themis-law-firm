@@ -155,6 +155,44 @@ describe("POST /api/booking-requests", () => {
     expect(fakes.createdInputs).toHaveLength(0);
   });
 
+  it("rate-limit RPC failure returns a safe public code", async () => {
+    const fakes = createFakes();
+    const handler = createBookingRequestHandler({
+      persistence: {
+        async hasExistingBookingRequest() {
+          return false;
+        },
+        async createBookingRequest(input) {
+          fakes.createdInputs.push(input);
+          return { ok: true, status: "created" };
+        },
+        async updateNotificationDelivery() {
+          return undefined;
+        },
+      },
+      rateLimiter: {
+        async check() {
+          throw Object.assign(new Error("test failure"), { supabaseCode: "TEST_RATE_RPC" });
+        },
+      },
+      emailProvider: {
+        async send() {
+          return { ok: true };
+        },
+      },
+      now: () => now,
+      adminEmail: () => "admin@example.com",
+    });
+
+    const response = await handler(makeRequest(validPayload()));
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body).toEqual({ code: "BOOKING_RATE_LIMIT_ERROR" });
+    expect(JSON.stringify(body)).not.toContain("TEST_RATE_RPC");
+    expect(JSON.stringify(body)).not.toContain("test failure");
+  });
+
   it("duplicate idempotency result returns neutral success and does not resend emails", async () => {
     const fakes = createFakes({ persistenceStatus: "idempotent" });
     const response = await fakes.handler(makeRequest(validPayload()));
@@ -207,8 +245,61 @@ describe("POST /api/booking-requests", () => {
     const response = await fakes.handler(makeRequest(validPayload()));
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toEqual({ code: "BOOKING_SERVER_ERROR" });
+    expect(await response.json()).toEqual({ code: "BOOKING_PERSISTENCE_ERROR" });
     expect(fakes.emails).toHaveLength(0);
+  });
+
+  it("environment configuration failure returns a safe public code", async () => {
+    const previousAdmin = process.env.ADMIN_NOTIFICATION_EMAIL;
+    const fakes = createFakes();
+    delete process.env.ADMIN_NOTIFICATION_EMAIL;
+
+    try {
+      const handler = createBookingRequestHandler({
+        persistence: {
+          async hasExistingBookingRequest() {
+            return false;
+          },
+          async createBookingRequest(input) {
+            fakes.createdInputs.push(input);
+            return { ok: true, status: "created" };
+          },
+          async updateNotificationDelivery() {
+            return undefined;
+          },
+        },
+        rateLimiter: {
+          async check() {
+            return {
+              allowed: true,
+              count: 1,
+              windowStart: now,
+              windowEnd: new Date(now.getTime() + 15 * 60 * 1000),
+            };
+          },
+        },
+        emailProvider: {
+          async send() {
+            return { ok: true };
+          },
+        },
+        now: () => now,
+      });
+
+      const response = await handler(makeRequest(validPayload()));
+      const body = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(body).toEqual({ code: "BOOKING_CONFIGURATION_ERROR" });
+      expect(JSON.stringify(body)).not.toContain("ADMIN_NOTIFICATION_EMAIL");
+      expect(fakes.createdInputs).toHaveLength(0);
+    } finally {
+      if (previousAdmin === undefined) {
+        delete process.env.ADMIN_NOTIFICATION_EMAIL;
+      } else {
+        process.env.ADMIN_NOTIFICATION_EMAIL = previousAdmin;
+      }
+    }
   });
 
   it("provider failure preserves the booking and marks notification failures", async () => {

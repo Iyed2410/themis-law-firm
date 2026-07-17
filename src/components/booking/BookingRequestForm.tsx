@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import type { Locale } from "@/lib/content";
 
 type Option = {
@@ -129,10 +129,17 @@ export function BookingRequestForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [reasonLength, setReasonLength] = useState(0);
+  const isSubmittingRef = useRef(false);
   const errorEntries = useMemo(() => Object.entries(fieldErrors), [fieldErrors]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (isSubmittingRef.current) {
+      return;
+    }
+
+    isSubmittingRef.current = true;
     setFieldErrors({});
     setFormError(null);
     setIsSubmitting(true);
@@ -181,6 +188,7 @@ export function BookingRequestForm({
     } catch {
       setFormError(text.genericError);
     } finally {
+      isSubmittingRef.current = false;
       setIsSubmitting(false);
     }
   }
@@ -201,7 +209,13 @@ export function BookingRequestForm({
   }
 
   return (
-    <form className="border border-black/10 bg-surface p-6" onSubmit={handleSubmit} noValidate>
+    <form
+      method="post"
+      action="/api/booking-requests"
+      className="border border-black/10 bg-surface p-6"
+      onSubmit={handleSubmit}
+      noValidate
+    >
       {formError ? (
         <div
           className="mb-6 border border-red-700/40 bg-red-50 p-4 text-sm text-red-900"

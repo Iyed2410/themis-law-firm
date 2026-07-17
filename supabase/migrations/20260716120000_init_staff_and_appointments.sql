@@ -12,7 +12,7 @@ create table if not exists public.profiles (
 );
 
 create table if not exists public.lawyer_profiles (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   profile_id uuid not null references public.profiles(id) on delete cascade,
   display_name text not null,
   specialization text not null default 'general',
@@ -22,7 +22,7 @@ create table if not exists public.lawyer_profiles (
 );
 
 create table if not exists public.appointments (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   public_reference text not null unique,
   client_name text not null,
   client_email text not null,
@@ -43,7 +43,7 @@ create table if not exists public.appointments (
 );
 
 create table if not exists public.appointment_audit_logs (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   appointment_id uuid not null references public.appointments(id) on delete cascade,
   actor_id uuid null,
   action text not null,
@@ -52,7 +52,7 @@ create table if not exists public.appointment_audit_logs (
 );
 
 create table if not exists public.notification_deliveries (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   appointment_id uuid null references public.appointments(id) on delete cascade,
   channel text not null default 'email',
   notification_type text not null,
@@ -63,7 +63,7 @@ create table if not exists public.notification_deliveries (
 );
 
 create table if not exists public.lawyer_availability (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   lawyer_id uuid not null,
   day_of_week integer not null check (day_of_week between 0 and 6),
   start_time text not null,
@@ -72,7 +72,7 @@ create table if not exists public.lawyer_availability (
 );
 
 create table if not exists public.blocked_times (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   lawyer_id uuid not null,
   starts_at timestamptz not null,
   ends_at timestamptz not null,
@@ -81,7 +81,7 @@ create table if not exists public.blocked_times (
 );
 
 create table if not exists public.business_settings (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   key text not null unique,
   value text not null,
   created_at timestamptz not null default now(),
@@ -96,7 +96,9 @@ alter table public.profiles enable row level security;
 alter table public.appointments enable row level security;
 alter table public.appointment_audit_logs enable row level security;
 
-create policy if not exists profiles_select_own_or_admin on public.profiles
+drop policy if exists profiles_select_own_or_admin on public.profiles;
+
+create policy profiles_select_own_or_admin on public.profiles
   for select using (
     auth.uid() = id
     or exists (
@@ -106,7 +108,9 @@ create policy if not exists profiles_select_own_or_admin on public.profiles
     )
   );
 
-create policy if not exists appointments_select_admin_or_assigned on public.appointments
+drop policy if exists appointments_select_admin_or_assigned on public.appointments;
+
+create policy appointments_select_admin_or_assigned on public.appointments
   for select using (
     exists (
       select 1 from public.profiles admin_profile
@@ -120,7 +124,9 @@ create policy if not exists appointments_select_admin_or_assigned on public.appo
     )
   );
 
-create policy if not exists appointments_update_admin_or_assigned on public.appointments
+drop policy if exists appointments_update_admin_or_assigned on public.appointments;
+
+create policy appointments_update_admin_or_assigned on public.appointments
   for update using (
     exists (
       select 1 from public.profiles admin_profile
@@ -134,8 +140,12 @@ create policy if not exists appointments_update_admin_or_assigned on public.appo
     )
   );
 
-create policy if not exists appointments_insert_denied on public.appointments
+drop policy if exists appointments_insert_denied on public.appointments;
+
+create policy appointments_insert_denied on public.appointments
   for insert with check (false);
 
-create policy if not exists appointments_read_denied for public.appointments
+drop policy if exists appointments_read_denied on public.appointments;
+
+create policy appointments_read_denied on public.appointments
   for select using (false);

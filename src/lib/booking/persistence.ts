@@ -13,7 +13,7 @@ export type PersistBookingRequestInput = {
 
 export type PersistBookingRequestResult =
   | { ok: true; status: "created" | "idempotent" }
-  | { ok: false; code: "persistence_failed" };
+  | { ok: false; code: "persistence_failed"; supabaseCode?: string };
 
 export type NotificationDeliveryUpdate = {
   idempotencyKey: string;
@@ -30,13 +30,23 @@ export type BookingPersistence = {
   updateNotificationDelivery(input: NotificationDeliveryUpdate): Promise<void>;
 };
 
+export class BookingPersistenceError extends Error {
+  supabaseCode?: string;
+
+  constructor(message: string, options?: ErrorOptions & { supabaseCode?: string }) {
+    super(message, options);
+    this.name = "BookingPersistenceError";
+    this.supabaseCode = options?.supabaseCode;
+  }
+}
+
 export function createSupabaseBookingPersistence(): BookingPersistence {
   return {
     async hasExistingBookingRequest(requestIdempotencyKey) {
       const client = createSupabaseServerClient();
 
       if (!client) {
-        return false;
+        throw new BookingPersistenceError("Supabase service-role client is not configured.");
       }
 
       const { data, error } = await client
@@ -46,7 +56,10 @@ export function createSupabaseBookingPersistence(): BookingPersistence {
         .maybeSingle();
 
       if (error) {
-        return false;
+        throw new BookingPersistenceError("Unable to check booking idempotency.", {
+          cause: error,
+          supabaseCode: getSupabaseErrorCode(error),
+        });
       }
 
       return Boolean(data);
@@ -82,7 +95,11 @@ export function createSupabaseBookingPersistence(): BookingPersistence {
       });
 
       if (error) {
-        return { ok: false, code: "persistence_failed" };
+        return {
+          ok: false,
+          code: "persistence_failed",
+          supabaseCode: getSupabaseErrorCode(error),
+        };
       }
 
       const row = Array.isArray(data) ? data[0] : data;
@@ -99,10 +116,10 @@ export function createSupabaseBookingPersistence(): BookingPersistence {
       const client = createSupabaseServerClient();
 
       if (!client) {
-        return;
+        throw new BookingPersistenceError("Supabase service-role client is not configured.");
       }
 
-      await client
+      const { error } = await client
         .from(databaseSchema.notificationDeliveries)
         .update({
           delivery_status: input.status,
@@ -111,6 +128,23 @@ export function createSupabaseBookingPersistence(): BookingPersistence {
           error_code: input.errorCode ?? null,
         })
         .eq("idempotency_key", input.idempotencyKey);
+
+      if (error) {
+        throw new BookingPersistenceError("Unable to update notification delivery.", {
+          cause: error,
+          supabaseCode: getSupabaseErrorCode(error),
+        });
+      }
     },
   };
+}
+
+function getSupabaseErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+
+  const code = (error as { code?: unknown }).code;
+
+  return typeof code === "string" ? code : undefined;
 }

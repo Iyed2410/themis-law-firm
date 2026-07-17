@@ -30,9 +30,12 @@ export class BookingRateLimitConfigurationError extends Error {
 }
 
 export class BookingRateLimitStoreError extends Error {
-  constructor(message: string, options?: ErrorOptions) {
+  supabaseCode?: string;
+
+  constructor(message: string, options?: ErrorOptions & { supabaseCode?: string }) {
     super(message, options);
     this.name = "BookingRateLimitStoreError";
+    this.supabaseCode = options?.supabaseCode;
   }
 }
 
@@ -97,6 +100,7 @@ export function createSupabaseBookingRateLimiter(): BookingRateLimiter {
       if (error) {
         throw new BookingRateLimitStoreError("Unable to apply booking rate limit.", {
           cause: error,
+          supabaseCode: getSupabaseErrorCode(error),
         });
       }
 
@@ -117,4 +121,14 @@ export function getNetworkIdentifier(headers: Headers): string {
   const realIp = headers.get("x-real-ip")?.trim();
 
   return forwarded || realIp || "unknown";
+}
+
+function getSupabaseErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object") {
+    return undefined;
+  }
+
+  const code = (error as { code?: unknown }).code;
+
+  return typeof code === "string" ? code : undefined;
 }
