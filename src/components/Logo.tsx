@@ -9,6 +9,7 @@ export function Logo() {
         width={140}
         height={40}
         className="h-10 w-auto"
+        style={{ width: "auto" }}
       />
       <span className="text-sm font-semibold uppercase tracking-[0.24em] text-navy">Themis Law Firm</span>
     </div>
