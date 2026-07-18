@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import { headers as nextHeaders } from "next/headers";
 import { getStaffAuthContext, type StaffAuthContextInput } from "@/lib/auth/staff";
+import { getSafeStaffRedirectPath, getStaffLoginPath } from "@/lib/auth/redirect";
 
 export type StaffSessionInput = StaffAuthContextInput & {
   headersResolver?: () => Promise<Headers | null>;
+  currentPath?: string | null;
 };
 
 function isOutsideRequestScopeError(error: unknown): boolean {
@@ -11,23 +13,7 @@ function isOutsideRequestScopeError(error: unknown): boolean {
 }
 
 export async function getStaffSession(input?: StaffSessionInput) {
-  if (input?.accessToken) {
-    return getStaffAuthContext(input);
-  }
-
-  try {
-    const requestHeaders = input?.headersResolver ? await input.headersResolver() : await nextHeaders();
-    const authorization = requestHeaders?.get("authorization");
-    const accessToken = authorization?.replace(/^Bearer\s+/i, "").trim() ?? null;
-
-    return getStaffAuthContext({ ...input, accessToken });
-  } catch (error) {
-    if (isOutsideRequestScopeError(error)) {
-      return null;
-    }
-
-    throw error;
-  }
+  return getStaffAuthContext(input);
 }
 
 export async function requireStaffSession(input?: StaffSessionInput) {
@@ -38,8 +24,25 @@ export async function requireStaffDashboardAccess(input?: StaffSessionInput) {
   const session = await requireStaffSession(input);
 
   if (!session) {
-    redirect("/auth/login");
+    redirect(getStaffLoginPath(await resolveCurrentPath(input)));
   }
 
   return session;
+}
+
+async function resolveCurrentPath(input?: StaffSessionInput): Promise<string> {
+  if (input?.currentPath) {
+    return getSafeStaffRedirectPath(input.currentPath);
+  }
+
+  try {
+    const requestHeaders = input?.headersResolver ? await input.headersResolver() : await nextHeaders();
+    return getSafeStaffRedirectPath(requestHeaders?.get("x-current-path"));
+  } catch (error) {
+    if (isOutsideRequestScopeError(error)) {
+      return "/dashboard";
+    }
+
+    throw error;
+  }
 }

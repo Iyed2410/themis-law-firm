@@ -16,12 +16,12 @@ export default async function DashboardPlaceholder() {
             <dd>{authContext.role ?? "non défini"}</dd>
           </div>
           <div>
-            <dt className="font-semibold text-black">Utilisateur</dt>
+            <dt className="font-semibold text-black">Profil staff</dt>
             <dd>{authContext.userId ?? "—"}</dd>
           </div>
           <div>
-            <dt className="font-semibold text-black">Avocat</dt>
-            <dd>{authContext.lawyerId ?? "—"}</dd>
+            <dt className="font-semibold text-black">Statut</dt>
+            <dd>actif</dd>
           </div>
         </dl>
       </section>

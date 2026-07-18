@@ -1,5 +1,8 @@
 import { normalizeStaffRole } from "@/lib/auth/access";
-import { createSupabaseAuthClient } from "@/lib/supabase/server";
+import { createSupabaseSsrServerClient } from "@/lib/supabase/ssr-server";
+import { isUnauthenticatedAuthError } from "@/lib/auth/supabase-auth-errors";
+
+export { isUnauthenticatedAuthError } from "@/lib/auth/supabase-auth-errors";
 
 export class StaffAuthConfigurationError extends Error {
   constructor(message = "Supabase auth configuration is missing.") {
@@ -16,51 +19,62 @@ export class StaffAuthServiceError extends Error {
 }
 
 export type StaffAuthContext = {
-  role: string | null;
-  userId: string | null;
-  lawyerId: string | null;
+  role: "admin_lawyer" | "lawyer";
+  userId: string;
+  profileId: string;
+  staffProfileId: string;
+  email: string | null;
+  fullName: string | null;
 };
 
 export type ResolvedStaffProfile = {
   userId: string;
-  role: string | null;
-  lawyerId: string | null;
+  profileId: string;
+  role: "admin_lawyer" | "lawyer";
+  email: string | null;
+  fullName: string | null;
   isActive: boolean;
 };
 
+type SupabaseUser = {
+  id?: string;
+  email?: string | null;
+};
+
+type StaffAuthSupabaseClient = {
+  auth: {
+    getUser: () => Promise<{
+      data: { user: SupabaseUser | null };
+      error: unknown;
+    }>;
+  };
+  from: (table: "profiles") => {
+    select: (columns: string) => unknown;
+  };
+};
+
 export type StaffAuthContextInput = {
-  accessToken?: string | null;
-  profileResolver?: (accessToken: string) => Promise<ResolvedStaffProfile | null>;
+  supabase?: StaffAuthSupabaseClient | null;
   userId?: string | null;
+  profileId?: string | null;
   role?: string | null;
-  lawyerId?: string | null;
+  email?: string | null;
+  fullName?: string | null;
   isActive?: boolean;
 };
 
-function isInvalidSessionError(error: { message?: string } | null | undefined): boolean {
-  if (!error?.message) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-
-  return message.includes("invalid jwt") || message.includes("not authenticated") || message.includes("expired") || message.includes("unauthorized");
+function isOutsideRequestScopeError(error: unknown): boolean {
+  return error instanceof Error && /`?cookies`? was called outside a request scope|next\/headers/i.test(error.message);
 }
 
-async function resolveStaffProfile(accessToken: string): Promise<ResolvedStaffProfile | null> {
-  const client = createSupabaseAuthClient();
-
-  if (!client) {
-    throw new StaffAuthConfigurationError();
-  }
-
+async function resolveStaffProfile(client: StaffAuthSupabaseClient): Promise<ResolvedStaffProfile | null> {
   const {
     data: { user },
     error: userError,
-  } = await client.auth.getUser(accessToken);
+  } = await client.auth.getUser();
 
   if (userError) {
-    if (isInvalidSessionError(userError)) {
+    if (isUnauthenticatedAuthError(userError)) {
       return null;
     }
 
@@ -71,11 +85,25 @@ async function resolveStaffProfile(accessToken: string): Promise<ResolvedStaffPr
     return null;
   }
 
-  const { data: profile, error: profileError } = await client
-    .from("profiles")
-    .select("role, lawyer_id, is_active")
-    .eq("id", user.id)
-    .maybeSingle<{ role: string | null; lawyer_id: string | null; is_active: boolean | null }>();
+  const profileQuery = client.from("profiles").select("id, full_name, email, role, is_active") as {
+      eq: (
+        column: "id",
+        value: string
+      ) => {
+        maybeSingle: <T>() => Promise<{
+          data: T | null;
+          error: unknown;
+        }>;
+      };
+    };
+
+  const { data: profile, error: profileError } = await profileQuery.eq("id", user.id).maybeSingle<{
+    id: string;
+    full_name: string | null;
+    email: string | null;
+    role: string | null;
+    is_active: boolean | null;
+  }>();
 
   if (profileError) {
     throw new StaffAuthServiceError("Unable to load the staff profile for the current user.", { cause: profileError });
@@ -96,16 +124,21 @@ async function resolveStaffProfile(accessToken: string): Promise<ResolvedStaffPr
   }
 
   return {
-    userId: user.id,
+    userId: profile.id,
+    profileId: profile.id,
     role: normalizedRole,
-    lawyerId: profile.lawyer_id ?? null,
+    email: profile.email ?? user.email ?? null,
+    fullName: profile.full_name ?? null,
     isActive: profile.is_active ?? true,
   };
 }
 
 export async function getStaffAuthContext(input?: StaffAuthContextInput): Promise<StaffAuthContext | null> {
-  if (input?.userId !== undefined || input?.role !== undefined || input?.lawyerId !== undefined) {
-    if (!input.userId || !normalizeStaffRole(input.role)) {
+  if (input?.userId !== undefined || input?.profileId !== undefined || input?.role !== undefined) {
+    const profileId = input.profileId ?? input.userId;
+    const normalizedRole = normalizeStaffRole(input.role);
+
+    if (!profileId || !normalizedRole) {
       return null;
     }
 
@@ -114,21 +147,34 @@ export async function getStaffAuthContext(input?: StaffAuthContextInput): Promis
     }
 
     return {
-      role: normalizeStaffRole(input.role),
-      userId: input.userId,
-      lawyerId: input.lawyerId ?? null,
+      role: normalizedRole,
+      userId: profileId,
+      profileId,
+      staffProfileId: profileId,
+      email: input.email ?? null,
+      fullName: input.fullName ?? null,
     };
   }
 
-  const accessToken = input?.accessToken?.trim() ?? null;
+  let client = input?.supabase ?? null;
 
-  if (!accessToken) {
-    return null;
+  if (!client) {
+    try {
+      client = (await createSupabaseSsrServerClient()) as StaffAuthSupabaseClient | null;
+    } catch (error) {
+      if (isOutsideRequestScopeError(error)) {
+        return null;
+      }
+
+      throw error;
+    }
   }
 
-  const resolvedProfile = input?.profileResolver
-    ? await input.profileResolver(accessToken)
-    : await resolveStaffProfile(accessToken);
+  if (!client) {
+    throw new StaffAuthConfigurationError();
+  }
+
+  const resolvedProfile = await resolveStaffProfile(client);
 
   if (!resolvedProfile || resolvedProfile.isActive === false) {
     return null;
@@ -137,6 +183,9 @@ export async function getStaffAuthContext(input?: StaffAuthContextInput): Promis
   return {
     role: resolvedProfile.role,
     userId: resolvedProfile.userId,
-    lawyerId: resolvedProfile.lawyerId,
+    profileId: resolvedProfile.profileId,
+    staffProfileId: resolvedProfile.profileId,
+    email: resolvedProfile.email,
+    fullName: resolvedProfile.fullName,
   };
 }
