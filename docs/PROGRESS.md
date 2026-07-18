@@ -7,7 +7,7 @@
 - `database-auth`: not started
 - `public-site`: completed
 - `booking`: completed
-- `dashboard-calendar`: not started
+- `dashboard-calendar`: in progress
 - `email-jobs`: not started
 - `seo-security-tests`: not started
 - `final-audit`: not started
@@ -33,3 +33,7 @@
 - Booking email delivery failures preserve valid booking requests and update notification delivery status to `failed` when possible.
 - Rate limiting is documented in code as 5 accepted attempts per HMAC subject per 15-minute window, keyed from network identifier, normalized email, and the time window using `BOOKING_RATE_LIMIT_SECRET`.
 - Verified `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check` after booking implementation.
+- Dashboard-calendar checkpoint 5A completed the authentication and canonical identity prerequisite only. Staff authentication now uses Supabase SSR cookie sessions, a Next.js 16 proxy for token refresh, server-side `auth.getUser()` validation, and active role loading from `public.profiles`.
+- Staff identity for dashboard authorization is now `profiles.id` / `auth.users.id`; `profiles.lawyer_id` is deprecated and no longer used by application authorization helpers.
+- A new migration, `20260718021207_dashboard_auth_identity.sql`, preflights legacy staff/lawyer identifiers, converts safe lawyer-profile UUID references to profile UUIDs, adds canonical profile FKs/uniqueness, and replaces the old identity-related RLS foundation.
+- Dashboard-calendar views, appointment transitions, scheduling RPCs, payment editing, availability UI, notes UI, and conflict detection remain pending for later checkpoints.

@@ -22,8 +22,8 @@ export function canManageUsers(role: string | null | undefined): boolean {
 
 export function canAccessAppointment(
   role: string | null | undefined,
-  assignedLawyerId: string | null | undefined,
-  currentUserLawyerId: string | null | undefined
+  assignedStaffProfileId: string | null | undefined,
+  currentStaffProfileId: string | null | undefined
 ): boolean {
   const normalizedRole = normalizeStaffRole(role);
 
@@ -35,5 +35,9 @@ export function canAccessAppointment(
     return false;
   }
 
-  return Boolean(assignedLawyerId && currentUserLawyerId && assignedLawyerId === currentUserLawyerId);
+  return Boolean(
+    assignedStaffProfileId &&
+      currentStaffProfileId &&
+      assignedStaffProfileId === currentStaffProfileId
+  );
 }

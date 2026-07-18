@@ -6,6 +6,8 @@
 - Use separate App Router group roots for public locale pages and staff pages to preserve distinct layout and auth boundaries.
 - Centralize public content in typed locale files under `src/content`.
 - Use Supabase Auth and Row Level Security for staff authentication and appointment authorization.
+- Use Supabase SSR cookie-based authentication for browser staff sessions; dashboard authorization is revalidated in Server Components and Server Actions rather than relying on the proxy alone.
+- Use `profiles.id`, equal to `auth.users.id`, as the canonical staff/lawyer UUID for dashboard identity, assignment, availability, blocked times, and audit actors.
 - Implement the appointment lifecycle with explicit statuses and payment-tracking enums.
 - Use a dedicated cancellation token route with hashed tokens and expiry.
 - Build an email provider abstraction to support console logging in development and a transactional service in production.
